@@ -32,16 +32,11 @@
       "isBackground": true,
       // change this to your `beforeDevCommand`:
       "command": "bun",
-      "args": [
-        "dev"
-      ]
+      "args": ["dev"]
     },
     {
       "label": "dev",
-      "dependsOn": [
-        "build:debug",
-        "ui:dev"
-      ],
+      "dependsOn": ["build:debug", "ui:dev"],
       "group": {
         "kind": "build"
       }
