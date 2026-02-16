@@ -24,23 +24,30 @@ import {
 import { invoke } from "@tauri-apps/api/core";
 import QuantumNumbers from "@/lib/quantum-numbers";
 import Point from "@/lib/point";
+import { listen } from "@tauri-apps/api/event";
+import { Progress } from "@/components/ui/progress";
+import { cn } from "@/lib/utils";
 
 const defaultQn: QuantumNumbers = { n: 1, l: 0, ml: 0 };
-const defaultSampleSize = 50;
+const defaultSampleSize = 100;
 
 export default function Home() {
+  const [pts, setPts] = useState<Point[]>([]);
   const [{ n, l }, setQn] = useState(defaultQn);
+  const [currentN, setCurrentN] = useState(defaultQn.n),
+    [currentL, setCurrentL] = useState(defaultQn.l),
+    [currentMl, setCurrentMl] = useState(defaultQn.ml),
+    [currentSampleSize, setCurrentSampleSize] = useState(defaultSampleSize),
+    [progress, setProgress] = useState(0);
   const [nValid, setNValid] = useState(true),
     [lValid, setLValid] = useState(true),
     [mlValid, setMlValid] = useState(true),
     [sampleSizeValid, setSampleSizeValid] = useState(true);
 
-  const [pts, setPts] = useState<Point[]>([]);
-
   useEffect(() => {
     invoke<QuantumNumbers>("set_quantum_numbers", {
       quantumNumbers: defaultQn,
-    }).then((value) => setQn(value));
+    });
 
     invoke<number>("set_sample_size", {
       sampleSize: defaultSampleSize,
@@ -55,6 +62,8 @@ export default function Home() {
           })),
         ),
     );
+
+    listen<number>("progress", ({ payload }) => setProgress(payload));
   }, []);
 
   return (
@@ -91,9 +100,9 @@ export default function Home() {
                 attach="attributes-color"
               />
             </bufferGeometry>
-            <pointsMaterial size={0.05} vertexColors sizeAttenuation />
+            <pointsMaterial size={0.1} vertexColors sizeAttenuation />
           </points>
-          <ambientLight intensity={5} />
+          <ambientLight intensity={10} />
         </Canvas>
       </div>
       <Sheet>
@@ -107,25 +116,13 @@ export default function Home() {
             <SheetTitle>Quantum Numbers</SheetTitle>
           </SheetHeader>
           <Form
-            action=""
-            className="p-4"
-            onChange={({ currentTarget }) => {
-              if (!currentTarget.checkValidity()) return;
-
-              const formData = new FormData(currentTarget);
-
-              invoke<QuantumNumbers>("set_quantum_numbers", {
+            action={(formData) => {
+              invoke("set_quantum_numbers", {
                 quantumNumbers: {
                   n: Number.parseInt(formData.get("n") as string),
                   l: Number.parseInt(formData.get("l") as string),
                   ml: Number.parseInt(formData.get("ml") as string),
                 },
-              }).then((value) => setQn(value));
-
-              invoke("set_sample_size", {
-                sampleSize: Number.parseInt(
-                  formData.get("sample-size") as string,
-                ),
               });
 
               invoke<(Omit<Point, "position"> & { position: number[] })[]>(
@@ -139,6 +136,7 @@ export default function Home() {
                 ),
               );
             }}
+            className="p-4"
           >
             <FieldSet>
               <FieldGroup>
@@ -151,11 +149,20 @@ export default function Home() {
                     name="n"
                     type="number"
                     placeholder={defaultQn.n.toLocaleString()}
-                    defaultValue={defaultQn.n}
+                    value={currentN}
                     min={1}
                     step={1}
                     required
-                    onChange={({ target }) => setNValid(target.checkValidity())}
+                    onChange={({ target }) => {
+                      setCurrentN(target.valueAsNumber);
+                      setNValid(target.checkValidity());
+
+                      if (nValid)
+                        setQn((prevState) => ({
+                          ...prevState,
+                          n: target.valueAsNumber,
+                        }));
+                    }}
                     aria-invalid={!nValid}
                   />
                   <FieldDescription>Principal Quantum Number</FieldDescription>
@@ -169,11 +176,20 @@ export default function Home() {
                     name="l"
                     type="number"
                     placeholder={defaultQn.l.toLocaleString()}
-                    defaultValue={defaultQn.l}
+                    value={currentL}
                     max={n - 1}
                     step={1}
                     required
-                    onChange={({ target }) => setLValid(target.checkValidity())}
+                    onChange={({ target }) => {
+                      setCurrentL(target.valueAsNumber);
+                      setLValid(target.checkValidity());
+
+                      if (lValid)
+                        setQn((prevState) => ({
+                          ...prevState,
+                          l: target.valueAsNumber,
+                        }));
+                    }}
                     aria-invalid={!lValid}
                   />
                   <FieldDescription>
@@ -189,14 +205,15 @@ export default function Home() {
                     name="ml"
                     type="number"
                     placeholder={defaultQn.ml.toLocaleString()}
-                    defaultValue={defaultQn.ml}
+                    value={currentMl}
                     min={-l}
                     max={l}
                     step={1}
                     required
-                    onChange={({ target }) =>
-                      setMlValid(target.checkValidity())
-                    }
+                    onChange={({ target }) => {
+                      setCurrentMl(target.valueAsNumber);
+                      setMlValid(target.checkValidity());
+                    }}
                     aria-invalid={!mlValid}
                   />
                   <FieldDescription>Magnetic Quantum Number</FieldDescription>
@@ -208,21 +225,28 @@ export default function Home() {
                     name="sample-size"
                     type="number"
                     placeholder={defaultSampleSize.toLocaleString()}
-                    defaultValue={defaultSampleSize}
+                    value={currentSampleSize}
                     min={0}
                     step={1}
                     required
-                    onChange={({ target }) =>
-                      setSampleSizeValid(target.checkValidity())
-                    }
-                    aria-invalid={!mlValid}
+                    onChange={({ target }) => {
+                      setCurrentSampleSize(target.valueAsNumber);
+                      setSampleSizeValid(target.checkValidity());
+                    }}
+                    aria-invalid={!sampleSizeValid}
                   />
                 </Field>
               </FieldGroup>
+              <Field>
+                <Button type="submit">Set</Button>
+              </Field>
             </FieldSet>
           </Form>
         </SheetContent>
       </Sheet>
+      <div className={cn("mx-4", progress === 100 && "hidden")}>
+        <Progress value={progress} />
+      </div>
     </>
   );
 }

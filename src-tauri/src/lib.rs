@@ -5,7 +5,7 @@ use num_complex::Complex64;
 use rand::{random, random_bool};
 use serde::{Deserialize, Serialize};
 use statrs::function::gamma::gamma;
-use tauri::{generate_handler, Manager};
+use tauri::{generate_handler, Emitter, Manager, Runtime};
 
 #[derive(Default)]
 struct AppState {
@@ -49,11 +49,9 @@ pub fn run() {
 async fn set_quantum_numbers(
     state: tauri::State<'_, AppState>,
     quantum_numbers: QuantumNumbers,
-) -> Result<QuantumNumbers, String> {
-    let mut quantum_numbers_state = state.quantum_numbers.lock().unwrap();
-
-    *quantum_numbers_state = quantum_numbers;
-    Ok(*quantum_numbers_state)
+) -> Result<(), String> {
+    *state.quantum_numbers.lock().unwrap() = quantum_numbers;
+    Ok(())
 }
 
 #[tauri::command]
@@ -72,7 +70,10 @@ struct Point {
 }
 
 #[tauri::command]
-async fn calc(state: tauri::State<'_, AppState>) -> Result<Vec<Point>, String> {
+async fn calc<R: Runtime>(
+    app: tauri::AppHandle<R>,
+    state: tauri::State<'_, AppState>,
+) -> Result<Vec<Point>, String> {
     let quantum_numbers = state.quantum_numbers.lock().unwrap();
     let sample_size = *state.sample_size.lock().unwrap();
     let mut points = Vec::with_capacity(sample_size);
@@ -94,6 +95,8 @@ async fn calc(state: tauri::State<'_, AppState>) -> Result<Vec<Point>, String> {
                 ),
                 phase: wave.arg() as f32,
             });
+
+            let _ = app.emit("progress", (points.len() * 100) / points.capacity());
         }
     }
 
