@@ -1,10 +1,11 @@
 [package]
 name = "schrodingles"
 version = "0.1.0"
-description = "A Tauri App"
-authors = ["you"]
-license = ""
-repository = ""
+description = "Electron cloud simulation"
+authors = ["CoolTrainerEX"]
+license = "CC-BY-SA-4.0"
+repository = "https://github.com/CoolTrainerEX/schrodingles.git"
+keywords = ["quantum"]
 edition = "2021"
 rust-version = "1.77.2"
 

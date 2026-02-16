@@ -2,6 +2,25 @@
   "name": "schrodingles",
   "version": "0.1.0",
   "private": true,
+  "description": "Electron cloud simulation",
+  "keywords": [
+    "quantum"
+  ],
+  "homepage": "https://github.com/CoolTrainerEX/schrodingles#readme",
+  "bugs": {
+    "url": "https://github.com/CoolTrainerEX/schrodingles/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/CoolTrainerEX/schrodingles.git"
+  },
+  "license": "CC-BY-SA-4.0",
+  "author": "CoolTrainerEX",
+  "type": "module",
+  "directories": {
+    "lib": "lib",
+    "test": "tests"
+  },
   "scripts": {
     "dev": "next dev",
     "build": "next build",
