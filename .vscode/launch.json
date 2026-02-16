@@ -49,7 +49,7 @@
       // (to debug release builds, change `target/debug` to `release/debug`)
       "program": "${workspaceRoot}/src-tauri/target/debug/schrodingles.exe",
       "cwd": "${workspaceRoot}",
-      "preLaunchTask": "ui:dev"
+      "preLaunchTask": "dev"
     }
   ]
 }
