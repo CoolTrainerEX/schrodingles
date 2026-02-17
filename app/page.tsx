@@ -1,6 +1,6 @@
 "use client";
 import { Canvas } from "@react-three/fiber";
-import { Color, Vector3 } from "three";
+import { Color } from "three";
 import { OrbitControls } from "@react-three/drei";
 import Form from "next/form";
 import {
@@ -22,48 +22,68 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { invoke } from "@tauri-apps/api/core";
-import QuantumNumbers from "@/lib/quantum-numbers";
-import Point from "@/lib/point";
-import { listen } from "@tauri-apps/api/event";
+import { listen, UnlistenFn } from "@tauri-apps/api/event";
 import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
+import { Spinner } from "@/components/ui/spinner";
 
-const defaultQn: QuantumNumbers = { n: 1, l: 0, ml: 0 };
+const defaultQn = { n: 1, l: 0, ml: 0 };
 const defaultSampleSize = 100;
 
 export default function Home() {
-  const [pts, setPts] = useState<Point[]>([]);
-  const [{ n, l }, setQn] = useState(defaultQn);
-  const [currentN, setCurrentN] = useState(defaultQn.n),
-    [currentL, setCurrentL] = useState(defaultQn.l),
-    [currentMl, setCurrentMl] = useState(defaultQn.ml),
-    [currentSampleSize, setCurrentSampleSize] = useState(defaultSampleSize),
-    [progress, setProgress] = useState(0);
+  const [positions, setPositions] = useState<Float32Array>(new Float32Array()),
+    [phases, setPhases] = useState<Float32Array>(new Float32Array());
+  const [formData, setFormData] = useState({
+    quantumNumbers: defaultQn,
+    sampleSize: defaultSampleSize,
+  });
+  const [n, setN] = useState(defaultQn.n.toLocaleString()),
+    [l, setL] = useState(defaultQn.l.toLocaleString()),
+    [ml, setMl] = useState(defaultQn.ml.toLocaleString()),
+    [sampleSize, setSampleSize] = useState(defaultSampleSize.toLocaleString()),
+    [progress, setProgress] = useState(100);
   const [nValid, setNValid] = useState(true),
     [lValid, setLValid] = useState(true),
     [mlValid, setMlValid] = useState(true),
     [sampleSizeValid, setSampleSizeValid] = useState(true);
 
   useEffect(() => {
-    invoke<QuantumNumbers>("set_quantum_numbers", {
-      quantumNumbers: defaultQn,
-    });
+    (async () => {
+      console.log("l");
+      const pts = await invoke<{ position: number[]; phase: number }[]>(
+        "calc",
+        formData,
+      );
+      console.log("s");
 
-    invoke<number>("set_sample_size", {
-      sampleSize: defaultSampleSize,
-    });
+      setPositions(Float32Array.from(pts.flatMap(({ position }) => position)));
+      setPhases(
+        Float32Array.from(
+          pts.flatMap(({ phase }) => {
+            const color = new Color().setHSL(
+              (phase + Math.PI) / (2 * Math.PI),
+              1,
+              0.5,
+            );
 
-    invoke<(Omit<Point, "position"> & { position: number[] })[]>("calc").then(
-      (value) =>
-        setPts(
-          value.map((value) => ({
-            ...value,
-            position: new Vector3(...value.position),
-          })),
+            return [color.r, color.g, color.b];
+          }),
         ),
-    );
+      );
+    })();
+  }, [formData]);
 
-    listen<number>("progress", ({ payload }) => setProgress(payload));
+  // Init
+  useEffect(() => {
+    let unlisten: UnlistenFn;
+
+    (async () => {
+      unlisten = await listen<number>("progress", ({ payload }) =>
+        setProgress(payload),
+      );
+    })();
+
+    return () => unlisten?.();
   }, []);
 
   return (
@@ -74,33 +94,12 @@ export default function Home() {
           <points>
             <bufferGeometry>
               <bufferAttribute
-                args={[
-                  Float32Array.from(
-                    pts.flatMap(({ position }) => position.toArray()),
-                  ),
-                  3,
-                ]}
+                args={[positions, 3]}
                 attach="attributes-position"
               />
-              <bufferAttribute
-                args={[
-                  Float32Array.from(
-                    pts.flatMap(({ phase }) => {
-                      const color = new Color().setHSL(
-                        (phase + Math.PI) / (2 * Math.PI),
-                        1,
-                        0.5,
-                      );
-
-                      return [color.r, color.g, color.b];
-                    }),
-                  ),
-                  3,
-                ]}
-                attach="attributes-color"
-              />
+              <bufferAttribute args={[phases, 3]} attach="attributes-color" />
             </bufferGeometry>
-            <pointsMaterial size={0.1} vertexColors sizeAttenuation />
+            <pointsMaterial size={0.5} vertexColors sizeAttenuation />
           </points>
           <ambientLight intensity={10} />
         </Canvas>
@@ -116,27 +115,34 @@ export default function Home() {
             <SheetTitle>Quantum Numbers</SheetTitle>
           </SheetHeader>
           <Form
-            action={(formData) => {
-              invoke("set_quantum_numbers", {
+            action={() => {
+              setProgress(0);
+              setFormData({
                 quantumNumbers: {
-                  n: Number.parseInt(formData.get("n") as string),
-                  l: Number.parseInt(formData.get("l") as string),
-                  ml: Number.parseInt(formData.get("ml") as string),
+                  n: Number.parseInt(n),
+                  l: Number.parseInt(l),
+                  ml: Number.parseInt(ml),
                 },
+                sampleSize: Number.parseInt(sampleSize),
               });
-
-              invoke<(Omit<Point, "position"> & { position: number[] })[]>(
-                "calc",
-              ).then((value) =>
-                setPts(
-                  value.map((value) => ({
-                    ...value,
-                    position: new Vector3(...value.position),
-                  })),
-                ),
-              );
             }}
             className="p-4"
+            onChange={({ currentTarget: { elements } }) => {
+              setNValid(
+                (elements.namedItem("n") as HTMLInputElement).checkValidity(),
+              );
+              setLValid(
+                (elements.namedItem("l") as HTMLInputElement).checkValidity(),
+              );
+              setMlValid(
+                (elements.namedItem("ml") as HTMLInputElement).checkValidity(),
+              );
+              setSampleSizeValid(
+                (
+                  elements.namedItem("sample-size") as HTMLInputElement
+                ).checkValidity(),
+              );
+            }}
           >
             <FieldSet>
               <FieldGroup>
@@ -149,20 +155,11 @@ export default function Home() {
                     name="n"
                     type="number"
                     placeholder={defaultQn.n.toLocaleString()}
-                    value={currentN}
+                    value={n}
                     min={1}
                     step={1}
                     required
-                    onChange={({ target }) => {
-                      setCurrentN(target.valueAsNumber);
-                      setNValid(target.checkValidity());
-
-                      if (nValid)
-                        setQn((prevState) => ({
-                          ...prevState,
-                          n: target.valueAsNumber,
-                        }));
-                    }}
+                    onChange={({ target: { value } }) => setN(value)}
                     aria-invalid={!nValid}
                   />
                   <FieldDescription>Principal Quantum Number</FieldDescription>
@@ -176,20 +173,12 @@ export default function Home() {
                     name="l"
                     type="number"
                     placeholder={defaultQn.l.toLocaleString()}
-                    value={currentL}
-                    max={n - 1}
+                    value={l}
+                    min={0}
+                    max={(Number.parseInt(n) - 1).toLocaleString()}
                     step={1}
                     required
-                    onChange={({ target }) => {
-                      setCurrentL(target.valueAsNumber);
-                      setLValid(target.checkValidity());
-
-                      if (lValid)
-                        setQn((prevState) => ({
-                          ...prevState,
-                          l: target.valueAsNumber,
-                        }));
-                    }}
+                    onChange={({ target: { value } }) => setL(value)}
                     aria-invalid={!lValid}
                   />
                   <FieldDescription>
@@ -205,15 +194,12 @@ export default function Home() {
                     name="ml"
                     type="number"
                     placeholder={defaultQn.ml.toLocaleString()}
-                    value={currentMl}
-                    min={-l}
+                    value={ml}
+                    min={(-l).toLocaleString()}
                     max={l}
                     step={1}
                     required
-                    onChange={({ target }) => {
-                      setCurrentMl(target.valueAsNumber);
-                      setMlValid(target.checkValidity());
-                    }}
+                    onChange={({ target: { value } }) => setMl(value)}
                     aria-invalid={!mlValid}
                   />
                   <FieldDescription>Magnetic Quantum Number</FieldDescription>
@@ -225,20 +211,20 @@ export default function Home() {
                     name="sample-size"
                     type="number"
                     placeholder={defaultSampleSize.toLocaleString()}
-                    value={currentSampleSize}
+                    value={sampleSize}
                     min={0}
+                    max={Number.MAX_SAFE_INTEGER}
                     step={1}
                     required
-                    onChange={({ target }) => {
-                      setCurrentSampleSize(target.valueAsNumber);
-                      setSampleSizeValid(target.checkValidity());
-                    }}
+                    onChange={({ target: { value } }) => setSampleSize(value)}
                     aria-invalid={!sampleSizeValid}
                   />
                 </Field>
               </FieldGroup>
               <Field>
-                <Button type="submit">Set</Button>
+                <Button type="submit" disabled={progress !== 100}>
+                  {progress === 100 ? "Set" : <Spinner />}
+                </Button>
               </Field>
             </FieldSet>
           </Form>

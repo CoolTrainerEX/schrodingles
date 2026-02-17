@@ -1,24 +1,18 @@
-use std::{f32, f64, sync::Mutex};
+use std::{
+    f32, f64,
+    sync::{
+        atomic::{AtomicUsize, Ordering},
+        Arc,
+    },
+};
 
 use glam::Vec3;
 use num_complex::Complex64;
-use rand::{random, random_bool};
+use rand::{rng, Rng};
+use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use serde::{Deserialize, Serialize};
 use statrs::function::gamma::gamma;
-use tauri::{generate_handler, Emitter, Manager, Runtime};
-
-#[derive(Default)]
-struct AppState {
-    quantum_numbers: Mutex<QuantumNumbers>,
-    sample_size: Mutex<usize>,
-}
-
-#[derive(Default, Serialize, Deserialize, Clone, Copy)]
-struct QuantumNumbers {
-    n: u8,
-    l: u8,
-    ml: i8,
-}
+use tauri::{generate_handler, Emitter, Runtime};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -32,35 +26,18 @@ pub fn run() {
                 )?;
             }
 
-            app.manage(AppState::default());
-
             Ok(())
         })
-        .invoke_handler(generate_handler![
-            set_quantum_numbers,
-            set_sample_size,
-            calc
-        ])
+        .invoke_handler(generate_handler![calc])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
 
-#[tauri::command]
-async fn set_quantum_numbers(
-    state: tauri::State<'_, AppState>,
-    quantum_numbers: QuantumNumbers,
-) -> Result<(), String> {
-    *state.quantum_numbers.lock().unwrap() = quantum_numbers;
-    Ok(())
-}
-
-#[tauri::command]
-async fn set_sample_size(
-    state: tauri::State<'_, AppState>,
-    sample_size: usize,
-) -> Result<(), String> {
-    *state.sample_size.lock().unwrap() = sample_size;
-    Ok(())
+#[derive(Deserialize, Clone, Copy)]
+struct QuantumNumbers {
+    n: u8,
+    l: u8,
+    ml: i8,
 }
 
 #[derive(Serialize)]
@@ -72,35 +49,41 @@ struct Point {
 #[tauri::command]
 async fn calc<R: Runtime>(
     app: tauri::AppHandle<R>,
-    state: tauri::State<'_, AppState>,
+    quantum_numbers: QuantumNumbers,
+    sample_size: usize,
 ) -> Result<Vec<Point>, String> {
-    let quantum_numbers = state.quantum_numbers.lock().unwrap();
-    let sample_size = *state.sample_size.lock().unwrap();
-    let mut points = Vec::with_capacity(sample_size);
+    let progress = Arc::new(AtomicUsize::new(0));
 
-    while points.len() < sample_size {
-        let r =
-            (10 * quantum_numbers.n * quantum_numbers.n) as f32 * random::<f32>().powf(1.0 / 3.0);
-        let theta = (random::<f32>() * 2.0 - 1.0).acos();
-        let phi = random::<f32>() * 2.0 * f32::consts::PI;
+    Ok((0..sample_size)
+        .into_par_iter()
+        .map(|_| loop {
+            let mut rng = rng();
+            let r = (10 * quantum_numbers.n * quantum_numbers.n) as f32
+                * rng.random::<f32>().powf(1.0 / 3.0);
+            let theta = (rng.random::<f32>() * 2.0 - 1.0).acos();
+            let phi = rng.random::<f32>() * 2.0 * f32::consts::PI;
 
-        let wave = psi(r.into(), theta.into(), phi.into(), *quantum_numbers);
+            let wave = psi(r.into(), theta.into(), phi.into(), quantum_numbers);
 
-        if random_bool(wave.norm_sqr()) {
-            points.push(Point {
-                position: Vec3::new(
-                    r * theta.sin() * phi.cos(),
-                    r * theta.sin() * phi.sin(),
-                    r * theta.cos(),
-                ),
-                phase: wave.arg() as f32,
-            });
+            if rng.random_bool(wave.norm_sqr()) {
+                let prev_progress = progress.fetch_add(1, Ordering::Relaxed);
+                let current_progress = (prev_progress + 1) * 100 / sample_size;
 
-            let _ = app.emit("progress", (points.len() * 100) / points.capacity());
-        }
-    }
+                if current_progress > prev_progress * 100 / sample_size {
+                    let _ = app.emit("progress", current_progress);
+                }
 
-    Ok(points)
+                return Point {
+                    position: Vec3::new(
+                        r * theta.sin() * phi.cos(),
+                        r * theta.sin() * phi.sin(),
+                        r * theta.cos(),
+                    ),
+                    phase: wave.arg() as f32,
+                };
+            }
+        })
+        .collect())
 }
 
 fn psi(r: f64, theta: f64, phi: f64, quantum_numbers: QuantumNumbers) -> Complex64 {
