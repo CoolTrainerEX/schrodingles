@@ -21,6 +21,11 @@
     "lib": "lib",
     "test": "tests"
   },
+  "prettier": {
+    "plugins": [
+      "prettier-plugin-tailwindcss"
+    ]
+  },
   "scripts": {
     "dev": "next dev",
     "build": "next build",

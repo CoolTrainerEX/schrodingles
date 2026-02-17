@@ -68,7 +68,7 @@ export default function Home() {
 
   return (
     <>
-      <div className="fixed w-full h-full -z-10">
+      <div className="fixed -z-10 h-full w-full">
         <Canvas>
           <OrbitControls />
           <points>
@@ -107,7 +107,7 @@ export default function Home() {
       </div>
       <Sheet>
         <SheetTrigger asChild>
-          <Button variant="outline" className="rounded-full float-end m-4">
+          <Button variant="outline" className="float-end m-4 rounded-full">
             <Menu />
           </Button>
         </SheetTrigger>
@@ -141,7 +141,7 @@ export default function Home() {
             <FieldSet>
               <FieldGroup>
                 <Field data-invalid={!nValid}>
-                  <FieldLabel htmlFor="n" className="italic font-serif">
+                  <FieldLabel htmlFor="n" className="font-serif italic">
                     n
                   </FieldLabel>
                   <Input
@@ -168,7 +168,7 @@ export default function Home() {
                   <FieldDescription>Principal Quantum Number</FieldDescription>
                 </Field>
                 <Field data-invalid={!lValid}>
-                  <FieldLabel htmlFor="l" className="italic font-serif">
+                  <FieldLabel htmlFor="l" className="font-serif italic">
                     l
                   </FieldLabel>
                   <Input
@@ -197,7 +197,7 @@ export default function Home() {
                   </FieldDescription>
                 </Field>
                 <Field data-invalid={!mlValid}>
-                  <FieldLabel htmlFor="ml" className="italic font-serif">
+                  <FieldLabel htmlFor="ml" className="font-serif italic">
                     m<sub>l</sub>
                   </FieldLabel>
                   <Input
