@@ -1,6 +1,6 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
-  "productName": "schrodingles",
+  "productName": "Schrodingles",
   "version": "1.0.0",
   "identifier": "com.cooltrainerex.schrodingles",
   "build": {
