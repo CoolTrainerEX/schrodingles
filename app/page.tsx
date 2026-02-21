@@ -49,12 +49,10 @@ export default function Home() {
 
   useEffect(() => {
     (async () => {
-      console.log("l");
       const pts = await invoke<{ position: number[]; phase: number }[]>(
         "calc",
         formData,
       );
-      console.log("s");
 
       setPositions(Float32Array.from(pts.flatMap(({ position }) => position)));
       setPhases(
